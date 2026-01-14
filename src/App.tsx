@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DataProvider } from './context/DataContext';
 import { Layout } from './components/Layout';
 import { DataManagement } from './pages/DataManagement';
@@ -10,7 +10,7 @@ import { StudentRanking } from './pages/StudentRanking';
 function App() {
   return (
     <DataProvider>
-      <BrowserRouter>
+      <HashRouter>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Navigate to="/data" replace />} />
@@ -21,7 +21,7 @@ function App() {
             <Route path="ranking" element={<StudentRanking />} />
           </Route>
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </DataProvider>
   );
 }
