@@ -276,14 +276,20 @@ export function getEffectiveValueAnalysis(
   const results: EffectiveValueData[] = [];
   
   // 需要分析的科目
-  const analysisSubjects = [
+  const analysisSubjects: Array<{
+    key: string;
+    label: string;
+    getScore: (s: Student, cat?: 'physics' | 'history') => number;
+    physicsOnly: boolean;
+    historyOnly: boolean;
+  }> = [
     { key: 'chinese', label: '语文', getScore: (s: Student) => s.scores.chinese || 0, physicsOnly: false, historyOnly: false },
     { key: 'math', label: '数学', getScore: (s: Student) => s.scores.math || 0, physicsOnly: false, historyOnly: false },
     { key: 'english', label: '英语', getScore: (s: Student) => s.scores.english || 0, physicsOnly: false, historyOnly: false },
     { key: 'physics', label: '物理', getScore: (s: Student) => s.scores.physics || 0, physicsOnly: true, historyOnly: false },
     { key: 'history', label: '历史', getScore: (s: Student) => s.scores.history || 0, physicsOnly: false, historyOnly: true },
-    { key: 'fourTotal', label: '四总', getScore: (s: Student, cat: 'physics' | 'history') => calculateFourTotal(s, cat), physicsOnly: false, historyOnly: false },
-    { key: 'sixTotal', label: '六总', getScore: (s: Student, cat: 'physics' | 'history') => calculateSixTotal(s, cat), physicsOnly: false, historyOnly: false },
+    { key: 'fourTotal', label: '四总', getScore: (s: Student, cat?: 'physics' | 'history') => calculateFourTotal(s, cat || 'physics'), physicsOnly: false, historyOnly: false },
+    { key: 'sixTotal', label: '六总', getScore: (s: Student, cat?: 'physics' | 'history') => calculateSixTotal(s, cat || 'physics'), physicsOnly: false, historyOnly: false },
   ];
 
   data.forEach(exam => {
