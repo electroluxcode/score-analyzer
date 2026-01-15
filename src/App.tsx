@@ -6,6 +6,7 @@ import { OverviewAnalysis } from './pages/OverviewAnalysis';
 import { ClassAnalysis } from './pages/ClassAnalysis';
 import { PersonalAnalysis } from './pages/PersonalAnalysis';
 import { StudentRanking } from './pages/StudentRanking';
+import { EffectiveValueAnalysis } from './pages/EffectiveValueAnalysis';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
             <Route path="class" element={<ClassAnalysis />} />
             <Route path="personal" element={<PersonalAnalysis />} />
             <Route path="ranking" element={<StudentRanking />} />
+            <Route path="effective" element={<EffectiveValueAnalysis />} />
           </Route>
         </Routes>
       </HashRouter>

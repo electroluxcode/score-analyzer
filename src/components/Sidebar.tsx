@@ -6,13 +6,15 @@ import {
   User,
   Menu,
   X,
-  Award
+  Award,
+  TrendingUp
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
 
 const navItems = [
   { path: '/data', label: '数据管理', icon: Database },
+  { path: '/effective', label: '有效值分析', icon: TrendingUp },
   { path: '/ranking', label: '学生排名筛选', icon: Award },
   { path: '/overview', label: '成绩总体分析', icon: BarChart3 },
   { path: '/class', label: '成绩班级分析', icon: Users },

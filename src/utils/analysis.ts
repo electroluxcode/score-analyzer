@@ -227,3 +227,191 @@ export function getClassAdvantage(
 
   return results;
 }
+
+// 判断学生是物理类还是历史类
+function getStudentCategory(student: Student): 'physics' | 'history' | 'unknown' {
+  const hasPhysics = student.scores.physics && student.scores.physics > 0;
+  const hasHistory = student.scores.history && student.scores.history > 0;
+  
+  // 如果同时有物理和历史，根据哪个分数更高来判断
+  if (hasPhysics && hasHistory) {
+    return student.scores.physics > student.scores.history ? 'physics' : 'history';
+  }
+  if (hasPhysics) return 'physics';
+  if (hasHistory) return 'history';
+  return 'unknown';
+}
+
+// 计算四总（语文+数学+英语+历史/物理）
+function calculateFourTotal(student: Student, category: 'physics' | 'history'): number {
+  const chinese = student.scores.chinese || 0;
+  const math = student.scores.math || 0;
+  const english = student.scores.english || 0;
+  const subject = category === 'physics' ? (student.scores.physics || 0) : (student.scores.history || 0);
+  return chinese + math + english + subject;
+}
+
+// 计算六总（语文+数学+英语+历史/物理+化学+政治）
+function calculateSixTotal(student: Student, category: 'physics' | 'history'): number {
+  const fourTotal = calculateFourTotal(student, category);
+  const chemistry = student.scores.chemistry || 0;
+  const politics = student.scores.politics || 0;
+  return fourTotal + chemistry + politics;
+}
+
+// 有效值分析：统计物理类/历史类在各科目前N名的人数
+export interface EffectiveValueData {
+  exam: number;
+  category: 'physics' | 'history';
+  subject: string;
+  topN: number;
+  classCounts: { [classNumber: string]: number };
+  totalCount: number;
+}
+
+export function getEffectiveValueAnalysis(
+  data: ExamData[],
+  topN: number
+): EffectiveValueData[] {
+  const results: EffectiveValueData[] = [];
+  
+  // 需要分析的科目
+  const analysisSubjects = [
+    { key: 'chinese', label: '语文', getScore: (s: Student) => s.scores.chinese || 0, physicsOnly: false, historyOnly: false },
+    { key: 'math', label: '数学', getScore: (s: Student) => s.scores.math || 0, physicsOnly: false, historyOnly: false },
+    { key: 'english', label: '英语', getScore: (s: Student) => s.scores.english || 0, physicsOnly: false, historyOnly: false },
+    { key: 'physics', label: '物理', getScore: (s: Student) => s.scores.physics || 0, physicsOnly: true, historyOnly: false },
+    { key: 'history', label: '历史', getScore: (s: Student) => s.scores.history || 0, physicsOnly: false, historyOnly: true },
+    { key: 'fourTotal', label: '四总', getScore: (s: Student, cat: 'physics' | 'history') => calculateFourTotal(s, cat), physicsOnly: false, historyOnly: false },
+    { key: 'sixTotal', label: '六总', getScore: (s: Student, cat: 'physics' | 'history') => calculateSixTotal(s, cat), physicsOnly: false, historyOnly: false },
+  ];
+
+  data.forEach(exam => {
+    // 按类别分组学生
+    const physicsStudents = exam.students.filter(s => getStudentCategory(s) === 'physics');
+    const historyStudents = exam.students.filter(s => getStudentCategory(s) === 'history');
+
+    analysisSubjects.forEach(subject => {
+      // 处理物理类 - 只统计物理类应该统计的科目
+      if (!subject.historyOnly) {
+        const physicsScores = physicsStudents
+          .map(s => ({
+            student: s,
+            score: subject.key === 'fourTotal' || subject.key === 'sixTotal' 
+              ? subject.getScore(s, 'physics')
+              : subject.getScore(s),
+          }))
+          .filter(item => item.score > 0)
+          .sort((a, b) => b.score - a.score);
+
+        const topPhysics = physicsScores.slice(0, topN);
+        const topPhysicsIds = new Set(topPhysics.map(item => item.student.studentId));
+
+        const physicsClassCounts: { [key: string]: number } = {};
+        let physicsTotal = 0;
+
+        physicsStudents.forEach(s => {
+          if (topPhysicsIds.has(s.studentId)) {
+            physicsClassCounts[s.classNumber] = (physicsClassCounts[s.classNumber] || 0) + 1;
+            physicsTotal++;
+          }
+        });
+
+        results.push({
+          exam: exam.examNumber,
+          category: 'physics',
+          subject: subject.label,
+          topN,
+          classCounts: physicsClassCounts,
+          totalCount: physicsTotal,
+        });
+      }
+
+      // 处理历史类 - 只统计历史类应该统计的科目
+      if (!subject.physicsOnly) {
+        const historyScores = historyStudents
+          .map(s => ({
+            student: s,
+            score: subject.key === 'fourTotal' || subject.key === 'sixTotal'
+              ? subject.getScore(s, 'history')
+              : subject.getScore(s),
+          }))
+          .filter(item => item.score > 0)
+          .sort((a, b) => b.score - a.score);
+
+        const topHistory = historyScores.slice(0, topN);
+        const topHistoryIds = new Set(topHistory.map(item => item.student.studentId));
+
+        const historyClassCounts: { [key: string]: number } = {};
+        let historyTotal = 0;
+
+        historyStudents.forEach(s => {
+          if (topHistoryIds.has(s.studentId)) {
+            historyClassCounts[s.classNumber] = (historyClassCounts[s.classNumber] || 0) + 1;
+            historyTotal++;
+          }
+        });
+
+        results.push({
+          exam: exam.examNumber,
+          category: 'history',
+          subject: subject.label,
+          topN,
+          classCounts: historyClassCounts,
+          totalCount: historyTotal,
+        });
+      }
+    });
+  });
+
+  return results;
+}
+
+// 获取各班占比趋势数据
+export interface ClassPercentageTrend {
+  exam: number;
+  category: 'physics' | 'history';
+  subject: string;
+  topN: number;
+  classPercentages: { [classNumber: string]: number };
+}
+
+export function getClassPercentageTrends(
+  data: ExamData[],
+  topN: number
+): ClassPercentageTrend[] {
+  const effectiveData = getEffectiveValueAnalysis(data, topN);
+  const results: ClassPercentageTrend[] = [];
+  const classes = getClasses(data);
+
+  effectiveData.forEach(item => {
+    const classPercentages: { [key: string]: number } = {};
+    
+    // 获取该类别和科目的所有学生，用于计算百分比
+    const exam = data.find(e => e.examNumber === item.exam);
+    if (!exam) return;
+
+    const categoryStudents = exam.students.filter(s => getStudentCategory(s) === item.category);
+    
+    classes.forEach(classNum => {
+      const classStudents = categoryStudents.filter(s => s.classNumber === classNum);
+      const classTopCount = item.classCounts[classNum] || 0;
+      
+      if (classStudents.length > 0) {
+        classPercentages[classNum] = Math.round((classTopCount / classStudents.length) * 1000) / 10;
+      } else {
+        classPercentages[classNum] = 0;
+      }
+    });
+
+    results.push({
+      exam: item.exam,
+      category: item.category,
+      subject: item.subject,
+      topN: item.topN,
+      classPercentages,
+    });
+  });
+
+  return results;
+}
