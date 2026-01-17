@@ -450,12 +450,6 @@ export function exportSummaryStatistics(data: ExamData[]) {
     
     // 如果有赋分，收集赋分平均分
     if (hasAssignedScores && enabledFields.length > 0) {
-      const fieldNameMap: { [key: string]: string } = {
-        'chinese': '语文', 'math': '数学', 'english': '英语',
-        'physics': '物理', 'chemistry': '化学', 'politics': '政治',
-        'history': '历史', 'geography': '地理', 'biology': '生物',
-      };
-      
       classes.forEach(cls => {
         const classStudents = exam.students.filter(s => (s.classNumber || '(空)') === cls);
         if (classStudents.length === 0) return;
@@ -645,7 +639,7 @@ export function exportSummaryStatistics(data: ExamData[]) {
     });
     
     // 添加年级平均分行
-    const gradeRow = ['年级平均'];
+    const gradeRow: (string | number)[] = ['年级平均'];
     subjectKeys.forEach(key => {
       gradeRow.push(gradeAverages[key] || 0, '-');
     });
