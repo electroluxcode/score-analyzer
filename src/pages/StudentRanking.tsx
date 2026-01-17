@@ -16,6 +16,15 @@ export function StudentRanking() {
     return getExamNumbers(activeFile.data);
   }, [activeFile]);
 
+  const examNames = useMemo(() => {
+    if (!activeFile) return {};
+    const names: { [key: number]: string } = {};
+    activeFile.data.forEach(exam => {
+      names[exam.examNumber] = exam.examName;
+    });
+    return names;
+  }, [activeFile]);
+
   const filteredData = useMemo(() => {
     if (!activeFile) return [];
     return filterByExamNumbers(
@@ -65,7 +74,7 @@ export function StudentRanking() {
                   }}
                   className="rounded"
                 />
-                <span className="text-sm text-dark-textSecondary">第{num}次</span>
+                <span className="text-sm text-dark-textSecondary">{examNames[num] || `第${num}次`}</span>
               </label>
             ))}
           </div>

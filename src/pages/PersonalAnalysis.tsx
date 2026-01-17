@@ -36,6 +36,15 @@ export function PersonalAnalysis() {
     return getExamNumbers(activeFile.data);
   }, [activeFile]);
 
+  const examNames = useMemo(() => {
+    if (!activeFile) return {};
+    const names: { [key: number]: string } = {};
+    activeFile.data.forEach(exam => {
+      names[exam.examNumber] = exam.examName;
+    });
+    return names;
+  }, [activeFile]);
+
   const allStudents = useMemo(() => {
     if (!activeFile) return [];
     return getStudents(filteredData);
@@ -208,7 +217,7 @@ export function PersonalAnalysis() {
                     }}
                     className="rounded w-4 h-4"
                   />
-                  <span className="text-sm text-dark-textSecondary font-medium">第{num}次</span>
+                  <span className="text-sm text-dark-textSecondary font-medium">{examNames[num] || `第${num}次`}</span>
                 </label>
               ))}
             </div>

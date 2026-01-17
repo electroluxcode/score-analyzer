@@ -7,22 +7,61 @@ import {
   Menu,
   X,
   Award,
-  TrendingUp
+  TrendingUp,
+  Settings,
+  FileText,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
 
-const navItems = [
-  { path: '/data', label: '数据管理', icon: Database },
-  { path: '/effective', label: '有效值分析', icon: TrendingUp },
-  { path: '/ranking', label: '学生排名筛选', icon: Award },
-  { path: '/overview', label: '成绩总体分析', icon: BarChart3 },
-  { path: '/class', label: '成绩班级分析', icon: Users },
-  { path: '/personal', label: '成绩个人分析', icon: User },
+interface NavItem {
+  path: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number }>;
+}
+
+interface NavGroup {
+  label: string;
+  icon: React.ComponentType<{ size?: number }>;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    label: '数据管理',
+    icon: Database,
+    items: [
+      { path: '/data', label: '数据管理', icon: Database },
+      { path: '/field-mapping', label: '解析字段管理', icon: Settings },
+      { path: '/score-assignment', label: '赋分规则管理', icon: FileText },
+    ],
+  },
+  {
+    label: '数据分析',
+    icon: BarChart3,
+    items: [
+      { path: '/effective', label: '有效值分析', icon: TrendingUp },
+      { path: '/ranking', label: '学生排名筛选', icon: Award },
+      { path: '/overview', label: '成绩总体分析', icon: BarChart3 },
+      { path: '/class', label: '成绩班级分析', icon: Users },
+      { path: '/personal', label: '成绩个人分析', icon: User },
+    ],
+  },
 ];
 
 export function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(['数据管理', '数据分析']);
+
+  const toggleGroup = (groupLabel: string) => {
+    setExpandedGroups(prev =>
+      prev.includes(groupLabel)
+        ? prev.filter(g => g !== groupLabel)
+        : [...prev, groupLabel]
+    );
+  };
 
   return (
     <>
@@ -56,26 +95,52 @@ export function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
+          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+            {navGroups.map((group) => {
+              const GroupIcon = group.icon;
+              const isExpanded = expandedGroups.includes(group.label);
+              
               return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setIsMobileOpen(false)}
-                  className={({ isActive }) =>
-                    clsx(
-                      'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer',
-                      isActive
-                        ? 'bg-dark-surface2 text-dark-text shadow-lg'
-                        : 'text-dark-textSecondary hover:bg-dark-surface2 hover:text-dark-text'
-                    )
-                  }
-                >
-                  <Icon size={20} />
-                  <span className="font-medium">{item.label}</span>
-                </NavLink>
+                <div key={group.label}>
+                  {/* Group Header */}
+                  <button
+                    onClick={() => toggleGroup(group.label)}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-dark-textSecondary hover:bg-dark-surface2 hover:text-dark-text transition-all duration-200"
+                  >
+                    <GroupIcon size={20} />
+                    <span className="font-medium flex-1 text-left">{group.label}</span>
+                    {isExpanded ? (
+                      <ChevronDown size={16} />
+                    ) : (
+                      <ChevronRight size={16} />
+                    )}
+                  </button>
+
+                  {/* Group Items */}
+                  {isExpanded && (
+                    <div className="ml-8 mt-1 space-y-1">
+                      {group.items.map((item) => {
+                        return (
+                          <NavLink
+                            key={item.path}
+                            to={item.path}
+                            onClick={() => setIsMobileOpen(false)}
+                            className={({ isActive }) =>
+                              clsx(
+                                'flex items-center px-4 py-2 rounded-xl transition-all duration-200 cursor-pointer text-base',
+                                isActive
+                                  ? 'bg-dark-surface2 text-dark-text shadow-lg'
+                                  : 'text-dark-textSecondary hover:bg-dark-surface2 hover:text-dark-text'
+                              )
+                            }
+                          >
+                            <span className="font-medium">{item.label}</span>
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </nav>

@@ -25,6 +25,15 @@ export function EffectiveValueAnalysis() {
     return getExamNumbers(activeFile.data);
   }, [activeFile]);
 
+  const examNames = useMemo(() => {
+    if (!activeFile) return {};
+    const names: { [key: number]: string } = {};
+    activeFile.data.forEach(exam => {
+      names[exam.examNumber] = exam.examName;
+    });
+    return names;
+  }, [activeFile]);
+
   const filteredData = useMemo(() => {
     if (!activeFile) return [];
     return filterByExamNumbers(
@@ -61,7 +70,9 @@ export function EffectiveValueAnalysis() {
     categoryData.forEach(item => {
       if (SUBJECT_ORDER.includes(item.subject)) {
         classes.forEach(cls => {
-          tableData[item.subject][cls] = (tableData[item.subject][cls] || 0) + (item.classCounts[cls] || 0);
+          // classCounts 中已经使用了规范化后的班级号（空字符串统一为 '(空)'）
+          const count = item.classCounts[cls] || 0;
+          tableData[item.subject][cls] = (tableData[item.subject][cls] || 0) + count;
         });
       }
     });
@@ -123,7 +134,7 @@ export function EffectiveValueAnalysis() {
                     }}
                     className="rounded w-4 h-4"
                   />
-                  <span className="text-sm text-dark-textSecondary font-medium">第{num}次</span>
+                  <span className="text-sm text-dark-textSecondary font-medium">{examNames[num] || `第${num}次`}</span>
                 </label>
               ))}
             </div>

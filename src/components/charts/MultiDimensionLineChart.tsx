@@ -86,13 +86,6 @@ export function MultiDimensionLineChart({
       const types = Array.from(new Set(processedData.map(d => d.type).filter(Boolean)));
       const subjects = Array.from(new Set(processedData.map(d => d.subject)));
       
-      console.log('MultiDimensionLineChart - Processing data:', {
-        rawData: data,
-        processedData,
-        types,
-        subjects,
-        exams,
-      });
       
       types.forEach((type) => {
         if (!type) return;
@@ -152,13 +145,6 @@ export function MultiDimensionLineChart({
       // 没有类型，只按学科分组
       const subjects = Array.from(new Set(processedData.map(d => d.subject)));
       
-      console.log('MultiDimensionLineChart - No type, processing subjects:', {
-        rawData: data,
-        processedData,
-        subjects,
-        exams,
-      });
-
       subjects.forEach((subject, index) => {
         const subjectData = processedData
           .filter(d => d.subject === subject)

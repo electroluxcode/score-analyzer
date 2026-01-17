@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import type { ExamData, Student } from '../types';
 import { SUBJECTS } from '../types';
 import { getClasses } from '../utils/analysis';
+
 import { Card } from './Card';
 import { Select } from './Select';
 import { Input } from './Input';
@@ -28,12 +29,13 @@ export function StudentRankingFilter({ data }: StudentRankingFilterProps) {
     if (data.length === 0) return [];
 
     // 合并所有考试的学生数据
-    const allStudents: (Student & { examNumber: number })[] = [];
+    const allStudents: (Student & { examNumber: number; examName: string })[] = [];
     data.forEach(exam => {
       exam.students.forEach(student => {
         allStudents.push({
           ...student,
           examNumber: exam.examNumber,
+          examName: exam.examName,
         });
       });
     });
@@ -46,19 +48,96 @@ export function StudentRankingFilter({ data }: StudentRankingFilterProps) {
 
     // 根据学科筛选并排序
     const subjectKey = selectedSubject as keyof Student['scores'];
-    const sorted = scopeFiltered
-      .filter(s => {
-        const score = s.scores[subjectKey];
-        return score !== null && score !== undefined && score > 0;
+    
+    // 先计算所有学生的分数（用于排序和显示）
+    // 注意：排名始终使用原始分数的排名，不使用赋分
+    const studentsWithScore = scopeFiltered
+      .map(s => {
+        let score = s.scores[subjectKey] || 0;
+        // 如果是总分且有赋分总分，使用赋分总分进行排序
+        if (selectedSubject === 'total' && s.assignedTotal) {
+          score = s.assignedTotal;
+        }
+        return { ...s, calculatedScore: score };
       })
+      .filter(s => {
+        return s.calculatedScore !== null && s.calculatedScore !== undefined && s.calculatedScore > 0;
+      });
+    
+    // 计算基于原始分数的排名（用于显示，不使用赋分）
+    // 为每个考试单独计算排名
+    const rankMapByExam = new Map<number, Map<string, number>>();
+    
+    data.forEach(exam => {
+      // 筛选该考试的学生
+      let examStudents = exam.students;
+      if (scopeType === 'class' && selectedClass) {
+        examStudents = exam.students.filter(s => s.classNumber === selectedClass);
+      }
+      
+      // 计算该考试中每个学生的原始分数并排序
+      const studentsWithOriginalScore = examStudents
+        .map(s => {
+          let originalScore = s.scores[subjectKey] || 0;
+          if (selectedSubject === 'total') {
+            // 重新计算原始总分（不使用赋分）
+            // student.scores.total 已经被赋分更新，所以手动重新计算九科原始分数之和
+            originalScore = (s.scores.chinese || 0) +
+                            (s.scores.math || 0) +
+                            (s.scores.english || 0) +
+                            (s.scores.physics || 0) +
+                            (s.scores.chemistry || 0) +
+                            (s.scores.politics || 0) +
+                            (s.scores.history || 0) +
+                            (s.scores.geography || 0) +
+                            (s.scores.biology || 0);
+          }
+          return {
+            ...s,
+            originalScore,
+          };
+        })
+        .filter(s => s.originalScore > 0)
+        .sort((a, b) => b.originalScore - a.originalScore);
+      
+      // 为该考试创建排名映射
+      const examRankMap = new Map<string, number>();
+      let currentRank = 1;
+      for (let i = 0; i < studentsWithOriginalScore.length; i++) {
+        const student = studentsWithOriginalScore[i];
+        const key = `${student.studentId}`;
+        
+        if (i === 0) {
+          currentRank = 1;
+        } else {
+          if (student.originalScore < studentsWithOriginalScore[i - 1].originalScore) {
+            currentRank = i + 1;
+          }
+        }
+        
+        examRankMap.set(key, currentRank);
+      }
+      
+      rankMapByExam.set(exam.examNumber, examRankMap);
+    });
+    
+    // 排序（基于赋分后的分数，如果有赋分）
+    const sorted = studentsWithScore
       .sort((a, b) => {
-        const scoreA = a.scores[subjectKey] || 0;
-        const scoreB = b.scores[subjectKey] || 0;
-        return scoreB - scoreA; // 降序
+        return b.calculatedScore - a.calculatedScore; // 降序
       })
       .slice(0, topN);
 
-    return sorted;
+    // 添加基于原始分数的排名
+    return sorted.map(({ calculatedScore, ...student }) => {
+      const examRankMap = rankMapByExam.get(student.examNumber);
+      const rank = examRankMap ? examRankMap.get(student.studentId) || 0 : 0;
+      
+      return {
+        ...student,
+        calculatedRank: rank, // 基于原始分数的排名
+      };
+    });
   }, [data, scopeType, selectedClass, selectedSubject, topN]);
 
   const handleExport = () => {
@@ -77,7 +156,6 @@ export function StudentRankingFilter({ data }: StudentRankingFilterProps) {
       '学号',
       '班级',
       '考试次数',
-      '考试时间',
       ...SUBJECTS.map(s => s.label),
       ...SUBJECTS.map(s => `${s.label}排名`),
     ]);
@@ -90,7 +168,6 @@ export function StudentRankingFilter({ data }: StudentRankingFilterProps) {
         student.studentId,
         student.classNumber,
         student.examNumber,
-        student.examTime,
         student.scores.chinese,
         student.scores.math,
         student.scores.english,
@@ -277,8 +354,14 @@ export function StudentRankingFilter({ data }: StudentRankingFilterProps) {
                 <tbody className="divide-y divide-dark-border">
                   {filteredStudents.map((student, index) => {
                     const subjectKey = selectedSubject as keyof Student['scores'];
-                    const score = student.scores[subjectKey] || 0;
-                    const rank = student.ranks[subjectKey as keyof Student['ranks']] || 0;
+                    // 如果是总分且有赋分总分，使用赋分总分；否则使用原始分数
+                    let score = student.scores[subjectKey] || 0;
+                    
+                    if (selectedSubject === 'total' && student.assignedTotal) {
+                      score = student.assignedTotal;
+                    }
+                    // 使用基于原始分数计算的排名（不使用赋分）
+                    const rank = (student as any).calculatedRank || student.ranks[subjectKey as keyof Student['ranks']] || 0;
                     const isTop3 = index < 3;
                     
                     return (
@@ -311,7 +394,7 @@ export function StudentRankingFilter({ data }: StudentRankingFilterProps) {
                           {student.classNumber}
                         </td>
                         <td className="px-4 py-3 text-sm text-dark-textSecondary hidden lg:table-cell">
-                          第{student.examNumber}次
+                          {student.examName}
                         </td>
                         <td className="px-4 py-3 text-sm font-semibold text-right text-dark-text">
                           <span className="text-blue-400">

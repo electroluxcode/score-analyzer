@@ -4,6 +4,7 @@ import { SUBJECTS } from '../types';
 
 interface ExamSubjectFilterProps {
   examNumbers: number[];
+  examNames: { [key: number]: string };
   selectedExams: number[];
   onExamsChange: (exams: number[]) => void;
   subjectType: 'total' | 'subject';
@@ -14,6 +15,7 @@ interface ExamSubjectFilterProps {
 
 export function ExamSubjectFilter({
   examNumbers,
+  examNames,
   selectedExams,
   onExamsChange,
   subjectType,
@@ -46,7 +48,7 @@ export function ExamSubjectFilter({
                   }}
                   className="rounded w-4 h-4"
                 />
-                <span className="text-sm text-dark-textSecondary font-medium">第{num}次</span>
+                <span className="text-sm text-dark-textSecondary font-medium">{examNames[num] || `第${num}次`}</span>
               </label>
             ))}
           </div>

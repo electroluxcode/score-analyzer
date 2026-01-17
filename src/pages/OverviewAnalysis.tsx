@@ -35,6 +35,15 @@ export function OverviewAnalysis() {
     return getExamNumbers(activeFile.data);
   }, [activeFile]);
 
+  const examNames = useMemo(() => {
+    if (!activeFile) return {};
+    const names: { [key: number]: string } = {};
+    activeFile.data.forEach(exam => {
+      names[exam.examNumber] = exam.examName;
+    });
+    return names;
+  }, [activeFile]);
+
   const averageScores = useMemo(() => {
     const scores = getAverageScores(filteredData);
     // 如果选择了单科，只返回该学科的数据
@@ -90,6 +99,7 @@ export function OverviewAnalysis() {
       {/* Exam and Subject Filter */}
       <ExamSubjectFilter
         examNumbers={examNumbers}
+        examNames={examNames}
         selectedExams={selectedExams}
         onExamsChange={setSelectedExams}
         subjectType={subjectType}

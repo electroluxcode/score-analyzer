@@ -1,17 +1,23 @@
 import type { ExamData, Student } from '../types';
 import { SUBJECTS } from '../types';
+import { getStudentType, calculateFourTotal as calcFourTotal } from './scoreCalculation';
 
 export function getExamNumbers(data: ExamData[]): number[] {
   return data.map(exam => exam.examNumber);
+}
+
+// 规范化班级号：将空字符串转换为统一标识
+function normalizeClassNumber(classNumber: string): string {
+  return classNumber === '' ? '(空)' : classNumber;
 }
 
 export function getClasses(data: ExamData[]): string[] {
   const classesSet = new Set<string>();
   data.forEach(exam => {
     exam.students.forEach(student => {
-      if (student.classNumber) {
-        classesSet.add(student.classNumber);
-      }
+      // 将空字符串也作为一个班级处理，统一使用 '(空)' 标识
+      const classNum = normalizeClassNumber(student.classNumber);
+      classesSet.add(classNum);
     });
   });
   return Array.from(classesSet).sort();
@@ -228,27 +234,30 @@ export function getClassAdvantage(
   return results;
 }
 
-// 判断学生是物理类还是历史类
+// 判断学生是物理类还是历史类（使用与分数计算一致逻辑）
 function getStudentCategory(student: Student): 'physics' | 'history' | 'unknown' {
-  const hasPhysics = student.scores.physics && student.scores.physics > 0;
-  const hasHistory = student.scores.history && student.scores.history > 0;
-  
-  // 如果同时有物理和历史，根据哪个分数更高来判断
-  if (hasPhysics && hasHistory) {
-    return student.scores.physics > student.scores.history ? 'physics' : 'history';
+  try {
+    return getStudentType(student);
+  } catch (error) {
+    return 'unknown';
   }
-  if (hasPhysics) return 'physics';
-  if (hasHistory) return 'history';
-  return 'unknown';
 }
 
-// 计算四总（语文+数学+英语+历史/物理）
+// 计算四总（使用与分数计算一致逻辑）
 function calculateFourTotal(student: Student, category: 'physics' | 'history'): number {
-  const chinese = student.scores.chinese || 0;
-  const math = student.scores.math || 0;
-  const english = student.scores.english || 0;
-  const subject = category === 'physics' ? (student.scores.physics || 0) : (student.scores.history || 0);
-  return chinese + math + english + subject;
+  // 使用 scoreCalculation 中的函数，但需要根据类别调整
+  const type = getStudentType(student);
+  // 如果传入的类别与学生类型不一致，需要特殊处理
+  if (type === category) {
+    return calcFourTotal(student);
+  } else {
+    // 如果类别不匹配，按传入的类别计算
+    const chinese = student.scores.chinese || 0;
+    const math = student.scores.math || 0;
+    const english = student.scores.english || 0;
+    const subject = category === 'physics' ? (student.scores.physics || 0) : (student.scores.history || 0);
+    return chinese + math + english + subject;
+  }
 }
 
 // 计算六总（语文+数学+英语+历史/物理+化学+政治）
@@ -275,6 +284,13 @@ export function getEffectiveValueAnalysis(
 ): EffectiveValueData[] {
   const results: EffectiveValueData[] = [];
   
+  // 调试：打印输入数据
+  console.log('[getEffectiveValueAnalysis] 输入数据:', {
+    examCount: data.length,
+    totalStudents: data.reduce((sum, exam) => sum + exam.students.length, 0),
+    topN,
+  });
+  
   // 需要分析的科目
   const analysisSubjects: Array<{
     key: string;
@@ -296,6 +312,19 @@ export function getEffectiveValueAnalysis(
     // 按类别分组学生
     const physicsStudents = exam.students.filter(s => getStudentCategory(s) === 'physics');
     const historyStudents = exam.students.filter(s => getStudentCategory(s) === 'history');
+    
+    // 调试：打印分类结果
+    console.log(`[getEffectiveValueAnalysis] 第${exam.examNumber}次考试:`, {
+      totalStudents: exam.students.length,
+      physicsStudents: physicsStudents.length,
+      historyStudents: historyStudents.length,
+      samplePhysics: physicsStudents.slice(0, 2).map(s => ({
+        name: s.name,
+        classNumber: s.classNumber,
+        category: getStudentCategory(s),
+        scores: { physics: s.scores.physics, chemistry: s.scores.chemistry, biology: s.scores.biology },
+      })),
+    });
 
     analysisSubjects.forEach(subject => {
       // 处理物理类 - 只统计物理类应该统计的科目
@@ -318,10 +347,23 @@ export function getEffectiveValueAnalysis(
 
         physicsStudents.forEach(s => {
           if (topPhysicsIds.has(s.studentId)) {
-            physicsClassCounts[s.classNumber] = (physicsClassCounts[s.classNumber] || 0) + 1;
+            // 规范化班级号：空字符串统一为 '(空)'
+            const classNum = normalizeClassNumber(s.classNumber);
+            physicsClassCounts[classNum] = (physicsClassCounts[classNum] || 0) + 1;
             physicsTotal++;
           }
         });
+
+        // 调试：打印统计结果
+        if (subject.label === '语文' && exam.examNumber === data[0]?.examNumber) {
+          console.log(`[getEffectiveValueAnalysis] 物理类-${subject.label}:`, {
+            physicsScoresCount: physicsScores.length,
+            topN,
+            topPhysicsCount: topPhysics.length,
+            classCounts: physicsClassCounts,
+            totalCount: physicsTotal,
+          });
+        }
 
         results.push({
           exam: exam.examNumber,
@@ -353,7 +395,9 @@ export function getEffectiveValueAnalysis(
 
         historyStudents.forEach(s => {
           if (topHistoryIds.has(s.studentId)) {
-            historyClassCounts[s.classNumber] = (historyClassCounts[s.classNumber] || 0) + 1;
+            // 规范化班级号：空字符串统一为 '(空)'
+            const classNum = normalizeClassNumber(s.classNumber);
+            historyClassCounts[classNum] = (historyClassCounts[classNum] || 0) + 1;
             historyTotal++;
           }
         });
@@ -400,7 +444,10 @@ export function getClassPercentageTrends(
     const categoryStudents = exam.students.filter(s => getStudentCategory(s) === item.category);
     
     classes.forEach(classNum => {
-      const classStudents = categoryStudents.filter(s => s.classNumber === classNum);
+      // 匹配时：将学生的班级号规范化后与 classNum 比较
+      // classNum 已经是规范化后的值（空字符串统一为 '(空)'）
+      const classStudents = categoryStudents.filter(s => normalizeClassNumber(s.classNumber) === classNum);
+      // 统计时：classCounts 中已经使用了规范化后的班级号
       const classTopCount = item.classCounts[classNum] || 0;
       
       if (classStudents.length > 0) {

@@ -1,15 +1,18 @@
 import { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
-import { parseExcelFile, exportTemplate } from '../utils/excel';
+import { parseExcelFile, exportTemplate, exportSummaryStatistics, exportPersonalRanks, exportToExcel } from '../utils/excel';
 import type { ExcelFile } from '../types';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { Upload, Trash2, Check, X, Download } from 'lucide-react';
+import { Modal } from '../components/Modal';
+import { Upload, Trash2, Check, X, Download, FileDown, Edit } from 'lucide-react';
 
 export function DataManagement() {
   const { files, addFile, removeFile, updateFile, setActiveFile, activeFile } = useData();
   const [uploading, setUploading] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,6 +78,78 @@ export function DataManagement() {
     fileInputRef.current?.click();
   };
 
+  const handleExportClick = () => {
+    setShowExportModal(true);
+  };
+
+  const handleExportSummary = () => {
+    if (!activeFile) {
+      alert('请先选择生效的数据文件');
+      return;
+    }
+    setExporting(true);
+    try {
+      exportSummaryStatistics(activeFile.data);
+      alert('总体统计文件导出成功！');
+      setShowExportModal(false);
+    } catch (error) {
+      console.error('导出失败:', error);
+      alert('导出失败，请重试');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPersonal = () => {
+    if (!activeFile) {
+      alert('请先选择生效的数据文件');
+      return;
+    }
+    setExporting(true);
+    try {
+      exportPersonalRanks(activeFile.data);
+      alert('个人排名扩展文件导出成功！');
+      setShowExportModal(false);
+    } catch (error) {
+      console.error('导出失败:', error);
+      alert('导出失败，请重试');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportBoth = () => {
+    if (!activeFile) {
+      alert('请先选择生效的数据文件');
+      return;
+    }
+    setExporting(true);
+    try {
+      exportSummaryStatistics(activeFile.data);
+      setTimeout(() => {
+        exportPersonalRanks(activeFile.data);
+        alert('两个文件都已导出成功！');
+        setShowExportModal(false);
+        setExporting(false);
+      }, 500);
+    } catch (error) {
+      console.error('导出失败:', error);
+      alert('导出失败，请重试');
+      setExporting(false);
+    }
+  };
+
+  const handleExportOriginal = (file: ExcelFile) => {
+    try {
+      const filename = `${file.name}_原始数据_${new Date().toISOString().split('T')[0]}.xlsx`;
+      exportToExcel(file.data, filename);
+      alert('原始数据导出成功！');
+    } catch (error) {
+      console.error('导出失败:', error);
+      alert('导出失败，请重试');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -127,19 +202,66 @@ export function DataManagement() {
           <div className="text-xs text-dark-textTertiary bg-dark-surface2 rounded-lg p-3">
             <p className="font-semibold mb-1">提示：</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Excel 文件格式要求：每个工作表（Sheet）代表一次考试，工作表名称应为数字（如：1, 2, 3...）</li>
-              <li>表头应包含：考试、考试时间、班号、学号、姓名、各科成绩和排名列</li>
+              <li>Excel 文件格式要求：每个工作表（Sheet）代表一次考试，工作表名称即为考试名称</li>
+              <li>表头应包含：考试、考试时间、班号、学号、姓名、各科成绩（语文、数学、英语、物理、化学、生物、政治、历史、地理）</li>
+              <li>导入的Excel文件将根据"解析字段管理"中的解析规则进行解析</li>
+              <li>总分和排名将通过系统自动计算，无需在Excel中填写</li>
+              <li>系统会自动判断学生是物理生还是历史生，并计算对应的总分和排名</li>
               <li>如果不确定格式，请先下载模板文件参考</li>
             </ul>
           </div>
         </div>
       </Card>
 
+      {/* Parse Order Management Link */}
+      {/* <Card>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-dark-text mb-1">
+              解析顺序管理
+            </h3>
+            <p className="text-sm text-dark-textTertiary">
+              管理 Excel 工作表的解析顺序，控制数据读取顺序
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => navigate('/parse-order')}
+            className="flex items-center gap-2"
+          >
+            <Settings size={18} />
+            管理解析顺序
+          </Button>
+        </div>
+      </Card> */}
+
       {/* Files List */}
       <Card>
-        <h3 className="text-lg font-semibold text-dark-text mb-4">
-          已导入的文件 ({files.length})
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-dark-text">
+            已导入的文件 ({files.length})
+          </h3>
+          {activeFile && (
+            <Button
+              variant="secondary"
+              onClick={handleExportClick}
+              className="flex items-center gap-2"
+            >
+              <FileDown size={18} />
+              高阶数据导出
+            </Button>
+          )}
+        </div>
+        <div className="text-xs text-dark-textTertiary bg-dark-surface2 rounded-lg p-3 mb-4">
+          <p className="font-semibold mb-1">说明：</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>点击"高阶数据导出"可导出以下数据(数据源是当前生效表)：</li>
+            <ul className="list-disc list-inside space-y-1 ml-4">
+              <li><strong>总体统计</strong>：各考试班级各科平均分、多考试平均分趋势、有效值分析（包含赋分维度数据）等</li>
+              <li><strong>个人排名扩展</strong>：个人各科排名、四总/六总/九总排名、班级排名、学生类型（物理生/历史生）、赋分数据等</li>
+            </ul>
+          </ul>
+        </div>
         {files.length === 0 ? (
           <div className="text-center py-12 text-dark-textTertiary">
             <p>还没有导入任何文件</p>
@@ -155,11 +277,91 @@ export function DataManagement() {
                 onDelete={handleDelete}
                 onRename={handleRename}
                 onSetActive={handleSetActive}
+                onExportOriginal={handleExportOriginal}
               />
             ))}
           </div>
         )}
       </Card>
+
+      {/* Export Modal */}
+      <Modal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        title="数据导出"
+        size="lg"
+      >
+        <div className="space-y-6">
+          <div className="text-sm text-dark-textTertiary">
+            <p>请选择要导出的数据类型：</p>
+          </div>
+
+          <div className="space-y-4">
+            <Card>
+              <div className="space-y-3">
+                <h3 className="font-semibold text-dark-text">总体统计</h3>
+                <p className="text-sm text-dark-textTertiary">
+                  包含：各考试班级各科平均分、多考试平均分趋势、有效值分析（前10/50/100/200名）
+                </p>
+                <p className="text-xs text-dark-textTertiary">
+                  注：如果启用了赋分功能，将包含赋分维度的数据
+                </p>
+                <Button
+                  variant="primary"
+                  onClick={handleExportSummary}
+                  disabled={exporting || !activeFile}
+                  className="w-full"
+                >
+                  {exporting ? '导出中...' : '导出总体统计'}
+                </Button>
+              </div>
+            </Card>
+
+            <Card>
+              <div className="space-y-3">
+                <h3 className="font-semibold text-dark-text">个人排名扩展</h3>
+                <p className="text-sm text-dark-textTertiary">
+                  包含：个人各科排名、四总/六总/九总排名、班级排名、学生类型（物理生/历史生）
+                </p>
+                <p className="text-xs text-dark-textTertiary">
+                  注：四总=语数英+物理/历史，六总=四总+其他科目中分数最高的两科
+                </p>
+                <Button
+                  variant="primary"
+                  onClick={handleExportPersonal}
+                  disabled={exporting || !activeFile}
+                  className="w-full"
+                >
+                  {exporting ? '导出中...' : '导出个人排名'}
+                </Button>
+              </div>
+            </Card>
+
+            <Card>
+              <div className="space-y-3">
+                <h3 className="font-semibold text-dark-text">导出全部</h3>
+                <p className="text-sm text-dark-textTertiary">
+                  同时导出总体统计和个人排名扩展两个文件
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={handleExportBoth}
+                  disabled={exporting || !activeFile}
+                  className="w-full"
+                >
+                  {exporting ? '导出中...' : '导出全部'}
+                </Button>
+              </div>
+            </Card>
+          </div>
+
+          {!activeFile && (
+            <div className="text-sm text-red-400 bg-red-500/10 rounded-lg p-3">
+              请先选择生效的数据文件
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -170,6 +372,7 @@ interface FileItemProps {
   onDelete: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onSetActive: (id: string) => void;
+  onExportOriginal: (file: ExcelFile) => void;
 }
 
 function FileItem({
@@ -178,6 +381,7 @@ function FileItem({
   onDelete,
   onRename,
   onSetActive,
+  onExportOriginal,
 }: FileItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(file.name);
@@ -264,13 +468,24 @@ function FileItem({
               设为生效
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onExportOriginal(file)}
+            className="flex items-center gap-1"
+            title="导出原始数据"
+          >
+            <Download size={16} />
+          </Button>
           {!isEditing && (
             <Button
               size="sm"
               variant="ghost"
               onClick={() => setIsEditing(true)}
+              className="flex items-center gap-1"
+              title="重命名"
             >
-              重命名
+              <Edit size={16} />
             </Button>
           )}
           <Button
