@@ -62,7 +62,7 @@ export function calculateAssignedScore(
         assignedScore = Y1 + ((Y2 - Y1) / (X2 - X1)) * (originalScore - X1);
       }
       
-      return Math.round(assignedScore); // 四舍五入取整
+      return (assignedScore); // 四舍五入取整
     }
   }
   
