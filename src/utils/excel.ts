@@ -128,7 +128,7 @@ export function parseExcelFile(file: File): Promise<ExamData[]> {
               else if (standardName === '姓名') colMap.name = index;
               else if (standardName === '语文') colMap.chinese = index;
               else if (standardName === '数学') colMap.math = index;
-              else if (standardName === '英语') colMap.english = index;
+              else if (standardName === '英语' || standardName === '外语') colMap.english = index;
               else if (standardName === '物理') colMap.physics = index;
               else if (standardName === '化学') colMap.chemistry = index;
               else if (standardName === '政治') colMap.politics = index;
@@ -394,43 +394,23 @@ export function exportSummaryStatistics(data: ExamData[]) {
   
   // Sheet 1+: 各考试班级各科平均分（每个考试一个sheet）
   data.forEach(exam => {
-    const classAverageData: any[][] = [];
-    classAverageData.push(['班级', '语文', '数学', '英语', '物理', '化学', '政治', '历史', '地理', '生物', '总分', '4总', '6总', '9总']);
+    const classAverageData: (string | number)[][] = [];
+    const subjectKeys = ['chinese', 'math', 'english', 'physics', 'chemistry', 'politics', 'history', 'geography', 'biology', 'total'];
     
-    // 检查是否有赋分数据
-    const activeAssignment = getActiveScoreAssignment();
-    const hasAssignedScores = activeAssignment?.enabled && exam.students.some(s => s.assignedScores);
-    const enabledFields = activeAssignment?.enabledFields || [];
-    
-    // 如果有赋分，添加赋分列
-    if (hasAssignedScores && enabledFields.length > 0) {
-      const fieldNameMap: { [key: string]: string } = {
-        'chinese': '语文', 'math': '数学', 'english': '英语',
-        'physics': '物理', 'chemistry': '化学', 'politics': '政治',
-        'history': '历史', 'geography': '地理', 'biology': '生物',
-      };
-      // 按照原始科目的顺序添加赋分列
-      ['chinese', 'math', 'english', 'physics', 'chemistry', 'politics', 'history', 'geography', 'biology'].forEach(field => {
-        if (enabledFields.includes(field)) {
-          classAverageData[0].push(`${fieldNameMap[field]}赋分`);
-        }
-      });
-      // 添加赋分后的总分列
-      classAverageData[0].push('4总赋分', '6总赋分', '9总赋分');
-    }
-    
+    // 收集所有班级的平均分数据
+    const classAverages: { [className: string]: { [subject: string]: number | string } } = {};
     classes.forEach(cls => {
+      classAverages[cls] = {};
       const classStudents = exam.students.filter(s => (s.classNumber || '(空)') === cls);
       if (classStudents.length === 0) return;
       
-      const averages: any[] = [cls];
       // 各科目平均分
-      ['chinese', 'math', 'english', 'physics', 'chemistry', 'politics', 'history', 'geography', 'biology', 'total'].forEach(subjectKey => {
+      subjectKeys.forEach(subjectKey => {
         const scores = classStudents
           .map(s => s.scores[subjectKey as keyof typeof s.scores])
           .filter(score => score && score > 0);
         const avg = scores.length > 0 ? scores.reduce((sum, s) => sum + s, 0) / scores.length : 0;
-        averages.push(Math.round(avg * 10) / 10);
+        classAverages[cls][subjectKey] = Math.round(avg * 10) / 10;
       });
       
       // 计算4总、6总、9总平均分
@@ -458,14 +438,28 @@ export function exportSummaryStatistics(data: ExamData[]) {
         ? nineTotals.filter(t => t > 0).reduce((sum, s) => sum + s, 0) / nineTotals.filter(t => t > 0).length
         : 0;
       
-      averages.push(
-        Math.round(fourAvg * 10) / 10,
-        Math.round(sixAvg * 10) / 10,
-        Math.round(nineAvg * 10) / 10
-      );
+      classAverages[cls]['fourTotal'] = Math.round(fourAvg * 10) / 10;
+      classAverages[cls]['sixTotal'] = Math.round(sixAvg * 10) / 10;
+      classAverages[cls]['nineTotal'] = Math.round(nineAvg * 10) / 10;
+    });
+    
+    // 检查是否有赋分数据
+    const activeAssignment = getActiveScoreAssignment();
+    const hasAssignedScores = activeAssignment?.enabled && exam.students.some(s => s.assignedScores);
+    const enabledFields = activeAssignment?.enabledFields || [];
+    
+    // 如果有赋分，收集赋分平均分
+    if (hasAssignedScores && enabledFields.length > 0) {
+      const fieldNameMap: { [key: string]: string } = {
+        'chinese': '语文', 'math': '数学', 'english': '英语',
+        'physics': '物理', 'chemistry': '化学', 'politics': '政治',
+        'history': '历史', 'geography': '地理', 'biology': '生物',
+      };
       
-      // 如果有赋分，添加赋分平均分
-      if (hasAssignedScores && enabledFields.length > 0) {
+      classes.forEach(cls => {
+        const classStudents = exam.students.filter(s => (s.classNumber || '(空)') === cls);
+        if (classStudents.length === 0) return;
+        
         // 各科赋分平均分
         ['chinese', 'math', 'english', 'physics', 'chemistry', 'politics', 'history', 'geography', 'biology'].forEach(field => {
           if (enabledFields.includes(field)) {
@@ -473,7 +467,7 @@ export function exportSummaryStatistics(data: ExamData[]) {
               .map(s => s.assignedScores?.[field as keyof typeof s.assignedScores] || 0)
               .filter(score => score > 0);
             const avg = assignedScores.length > 0 ? assignedScores.reduce((sum, s) => sum + s, 0) / assignedScores.length : 0;
-            averages.push(Math.round(avg * 10) / 10);
+            classAverages[cls][`${field}Assigned`] = Math.round(avg * 10) / 10;
           }
         });
         
@@ -498,15 +492,180 @@ export function exportSummaryStatistics(data: ExamData[]) {
           ? nineTotalsAssigned.filter(t => t > 0).reduce((sum, s) => sum + s, 0) / nineTotalsAssigned.filter(t => t > 0).length
           : 0;
         
-        averages.push(
-          Math.round(fourAvgAssigned * 10) / 10,
-          Math.round(sixAvgAssigned * 10) / 10,
-          Math.round(nineAvgAssigned * 10) / 10
-        );
+        classAverages[cls]['fourTotalAssigned'] = Math.round(fourAvgAssigned * 10) / 10;
+        classAverages[cls]['sixTotalAssigned'] = Math.round(sixAvgAssigned * 10) / 10;
+        classAverages[cls]['nineTotalAssigned'] = Math.round(nineAvgAssigned * 10) / 10;
+      });
+    }
+    
+    // 计算每个科目的年级平均分
+    const gradeAverages: { [subject: string]: number } = {};
+    const allSubjectKeys = [...subjectKeys, 'fourTotal', 'sixTotal', 'nineTotal'];
+    allSubjectKeys.forEach(subjectKey => {
+      const values = Object.values(classAverages)
+        .map(avg => avg[subjectKey])
+        .filter(v => v !== undefined && typeof v === 'number' && v > 0) as number[];
+      gradeAverages[subjectKey] = values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+    });
+    
+    // 如果有赋分，计算赋分年级平均分
+    if (hasAssignedScores && enabledFields.length > 0) {
+      ['chinese', 'math', 'english', 'physics', 'chemistry', 'politics', 'history', 'geography', 'biology'].forEach(field => {
+        if (enabledFields.includes(field)) {
+          const values = Object.values(classAverages)
+            .map(avg => avg[`${field}Assigned`])
+            .filter(v => v !== undefined && typeof v === 'number' && v > 0) as number[];
+          gradeAverages[`${field}Assigned`] = values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+        }
+      });
+      ['fourTotalAssigned', 'sixTotalAssigned', 'nineTotalAssigned'].forEach(key => {
+        const values = Object.values(classAverages)
+          .map(avg => avg[key])
+          .filter(v => v !== undefined && typeof v === 'number' && v > 0) as number[];
+        gradeAverages[key] = values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+      });
+    }
+    
+    // 计算每个班级在每个科目的排名
+    const classRanks: { [className: string]: { [subject: string]: number } } = {};
+    Object.keys(classAverages).forEach(cls => {
+      classRanks[cls] = {};
+    });
+    
+    const allKeys = [...subjectKeys, 'fourTotal', 'sixTotal', 'nineTotal'];
+    if (hasAssignedScores && enabledFields.length > 0) {
+      ['chinese', 'math', 'english', 'physics', 'chemistry', 'politics', 'history', 'geography', 'biology'].forEach(field => {
+        if (enabledFields.includes(field)) {
+          allKeys.push(`${field}Assigned`);
+        }
+      });
+      allKeys.push('fourTotalAssigned', 'sixTotalAssigned', 'nineTotalAssigned');
+    }
+    
+    allKeys.forEach(subjectKey => {
+      const sortedClasses = Object.keys(classAverages)
+        .filter(cls => {
+          const value = classAverages[cls][subjectKey];
+          return value !== undefined && typeof value === 'number' && value > 0;
+        })
+        .sort((a, b) => {
+          const valueA = classAverages[a][subjectKey] as number;
+          const valueB = classAverages[b][subjectKey] as number;
+          return valueB - valueA;
+        });
+      
+      sortedClasses.forEach((cls, index) => {
+        classRanks[cls][subjectKey] = index + 1;
+      });
+    });
+    
+    // 构建表头
+    const headerRow = ['班级'];
+    subjectKeys.forEach(key => {
+      const labelMap: { [key: string]: string } = {
+        'chinese': '语文', 'math': '数学', 'english': '英语',
+        'physics': '物理', 'chemistry': '化学', 'politics': '政治',
+        'history': '历史', 'geography': '地理', 'biology': '生物',
+        'total': '总分', 'fourTotal': '4总', 'sixTotal': '6总', 'nineTotal': '9总',
+      };
+      headerRow.push(`${labelMap[key]}`, `${labelMap[key]}排名`);
+    });
+    headerRow.push('4总', '4总排名', '6总', '6总排名', '9总', '9总排名');
+    
+    // 如果有赋分，添加赋分列
+    if (hasAssignedScores && enabledFields.length > 0) {
+      const fieldNameMap: { [key: string]: string } = {
+        'chinese': '语文', 'math': '数学', 'english': '英语',
+        'physics': '物理', 'chemistry': '化学', 'politics': '政治',
+        'history': '历史', 'geography': '地理', 'biology': '生物',
+      };
+      // 按照原始科目的顺序添加赋分列
+      ['chinese', 'math', 'english', 'physics', 'chemistry', 'politics', 'history', 'geography', 'biology'].forEach(field => {
+        if (enabledFields.includes(field)) {
+          headerRow.push(`${fieldNameMap[field]}赋分`, `${fieldNameMap[field]}赋分排名`);
+        }
+      });
+      // 添加赋分后的总分列
+      headerRow.push('4总赋分', '4总赋分排名', '6总赋分', '6总赋分排名', '9总赋分', '9总赋分排名');
+    }
+    
+    classAverageData.push(headerRow);
+    
+    // 添加各班级数据
+    classes.forEach(cls => {
+      if (!classAverages[cls] || Object.keys(classAverages[cls]).length === 0) return;
+      
+      const row: (string | number)[] = [cls];
+      
+      // 添加各科目平均分和排名
+      subjectKeys.forEach(key => {
+        const avgValue = classAverages[cls][key] ?? 0;
+        const rankValue = classRanks[cls][key] ?? '-';
+        row.push(typeof avgValue === 'number' ? avgValue : 0);
+        row.push(typeof rankValue === 'number' ? rankValue : '-');
+      });
+      
+      // 添加4总、6总、9总平均分和排名
+      const fourTotalAvg = classAverages[cls]['fourTotal'] ?? 0;
+      const fourTotalRank = classRanks[cls]['fourTotal'] ?? '-';
+      const sixTotalAvg = classAverages[cls]['sixTotal'] ?? 0;
+      const sixTotalRank = classRanks[cls]['sixTotal'] ?? '-';
+      const nineTotalAvg = classAverages[cls]['nineTotal'] ?? 0;
+      const nineTotalRank = classRanks[cls]['nineTotal'] ?? '-';
+      
+      row.push(typeof fourTotalAvg === 'number' ? fourTotalAvg : 0, typeof fourTotalRank === 'number' ? fourTotalRank : '-');
+      row.push(typeof sixTotalAvg === 'number' ? sixTotalAvg : 0, typeof sixTotalRank === 'number' ? sixTotalRank : '-');
+      row.push(typeof nineTotalAvg === 'number' ? nineTotalAvg : 0, typeof nineTotalRank === 'number' ? nineTotalRank : '-');
+      
+      // 如果有赋分，添加赋分平均分和排名
+      if (hasAssignedScores && enabledFields.length > 0) {
+        ['chinese', 'math', 'english', 'physics', 'chemistry', 'politics', 'history', 'geography', 'biology'].forEach(field => {
+          if (enabledFields.includes(field)) {
+            const avgValue = classAverages[cls][`${field}Assigned`] ?? 0;
+            const rankValue = classRanks[cls][`${field}Assigned`] ?? '-';
+            row.push(typeof avgValue === 'number' ? avgValue : 0);
+            row.push(typeof rankValue === 'number' ? rankValue : '-');
+          }
+        });
+        
+        // 添加赋分后的4总、6总、9总平均分和排名
+        const fourTotalAssignedAvg = classAverages[cls]['fourTotalAssigned'] ?? 0;
+        const fourTotalAssignedRank = classRanks[cls]['fourTotalAssigned'] ?? '-';
+        const sixTotalAssignedAvg = classAverages[cls]['sixTotalAssigned'] ?? 0;
+        const sixTotalAssignedRank = classRanks[cls]['sixTotalAssigned'] ?? '-';
+        const nineTotalAssignedAvg = classAverages[cls]['nineTotalAssigned'] ?? 0;
+        const nineTotalAssignedRank = classRanks[cls]['nineTotalAssigned'] ?? '-';
+        
+        row.push(typeof fourTotalAssignedAvg === 'number' ? fourTotalAssignedAvg : 0, typeof fourTotalAssignedRank === 'number' ? fourTotalAssignedRank : '-');
+        row.push(typeof sixTotalAssignedAvg === 'number' ? sixTotalAssignedAvg : 0, typeof sixTotalAssignedRank === 'number' ? sixTotalAssignedRank : '-');
+        row.push(typeof nineTotalAssignedAvg === 'number' ? nineTotalAssignedAvg : 0, typeof nineTotalAssignedRank === 'number' ? nineTotalAssignedRank : '-');
       }
       
-      classAverageData.push(averages);
+      classAverageData.push(row);
     });
+    
+    // 添加年级平均分行
+    const gradeRow = ['年级平均'];
+    subjectKeys.forEach(key => {
+      gradeRow.push(gradeAverages[key] || 0, '-');
+    });
+    gradeRow.push(gradeAverages['fourTotal'] || 0, '-');
+    gradeRow.push(gradeAverages['sixTotal'] || 0, '-');
+    gradeRow.push(gradeAverages['nineTotal'] || 0, '-');
+    
+    // 如果有赋分，添加赋分年级平均分
+    if (hasAssignedScores && enabledFields.length > 0) {
+      ['chinese', 'math', 'english', 'physics', 'chemistry', 'politics', 'history', 'geography', 'biology'].forEach(field => {
+        if (enabledFields.includes(field)) {
+          gradeRow.push(gradeAverages[`${field}Assigned`] || 0, '-');
+        }
+      });
+      gradeRow.push(gradeAverages['fourTotalAssigned'] || 0, '-');
+      gradeRow.push(gradeAverages['sixTotalAssigned'] || 0, '-');
+      gradeRow.push(gradeAverages['nineTotalAssigned'] || 0, '-');
+    }
+    
+    classAverageData.push(gradeRow);
     
     const classAverageSheet = XLSX.utils.aoa_to_sheet(classAverageData);
     XLSX.utils.book_append_sheet(workbook, classAverageSheet, `班级各科平均分_${exam.examName}`);
