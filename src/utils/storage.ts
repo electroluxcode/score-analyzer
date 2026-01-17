@@ -185,7 +185,7 @@ export function getDefaultScoreAssignment(): ScoreAssignmentFile {
       { grade: 'D', percentage: 15, maxScore: 58, minScore: 41 },
       { grade: 'E', percentage: 2, maxScore: 40, minScore: 30 },
     ],
-    enabledFields: ['physics', 'chemistry', 'biology', 'politics', 'history', 'geography'], // 默认对所有选考科目生效
+    enabledFields: ['chemistry', 'biology', 'politics', 'geography'], // 默认对所有选考科目生效
     enabled: true,
     createdAt: 0,
     isDefault: true,
