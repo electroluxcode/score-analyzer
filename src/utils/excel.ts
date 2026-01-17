@@ -123,7 +123,7 @@ export function parseExcelFile(file: File): Promise<ExamData[]> {
               
               // 将标准名字映射到系统字段名
               if (standardName === '考试' || standardName === '考试顺序') colMap.exam = index;
-              else if (standardName === '班号') colMap.classNumber = index;
+              else if (standardName === '班号' || standardName === '班级') colMap.classNumber = index;
               else if (standardName === '学号') colMap.studentId = index;
               else if (standardName === '姓名') colMap.name = index;
               else if (standardName === '语文') colMap.chinese = index;
